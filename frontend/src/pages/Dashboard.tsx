@@ -74,7 +74,7 @@ export default function Dashboard() {
         </section>
 
         <section className="card">
-          <h2 className="card-title">Recent activity</h2>
+          <h2 className="card-title">Latest activity</h2>
           <ul className="list activity">
             {data.recent_activity.map((a) => (
               <li key={a.id} className="list-row">
