@@ -602,3 +602,7 @@ h3 {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.project-client {
+  color: #d6d3cb;
+}
