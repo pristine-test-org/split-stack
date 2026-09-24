@@ -10,7 +10,7 @@ export default function Team() {
 
   return (
     <>
-      <PageHeader title="Team" subtitle={`${data.length} people at Fieldline Studio`} />
+      <PageHeader title="Team" subtitle={`${data.length} people on the Fieldline Studio team`} />
       <div className="card card-flush">
         <table className="table">
           <thead>
