@@ -5,6 +5,8 @@ import { ErrorState, Loading, PageHeader, PriorityTag, StatusBadge } from '../co
 import { dueLabel, timeAgo } from '../format'
 import { useApi } from '../useApi'
 
+const studioLine = "Here's where the studio's work stands this week."
+
 export default function Dashboard() {
   const { user } = useAuth()
   const { data, error } = useApi<DashboardData>('/dashboard')
