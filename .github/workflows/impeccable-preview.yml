@@ -1,0 +1,140 @@
+# .github/workflows/impeccable-preview.yml
+# Runs the app in YOUR CI (your dependencies, env, seeded data) and connects it
+# to Impeccable for the minutes the design review takes; then the job gives the
+# tunnel back and exits. Nothing to provision and no secrets: the job's GitHub
+# OIDC token proves the repo and commit, and Impeccable answers with the
+# credential for ONE TUNNEL PER REVIEW on its own zone — a gated hostname,
+# where a bare link gets a 403. Two pull requests of this repository can be
+# reviewed at the same time; each gets its own. If Impeccable cannot open the
+# tunnel, the job fails and prints why. The last step hands the tunnel back
+# whatever happened, including when the run is cancelled, and a step that fails
+# tells Impeccable which one, so the setup page can say.
+# It runs when a draft pull request is marked ready for review, and not for a
+# draft, which Impeccable does not review.
+name: impeccable preview
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  preview:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        id: setup
+        with: { node-version: '22' }
+      - id: install
+        shell: bash
+        working-directory: frontend
+        run: |
+          exec > >(tee impeccable-step.log) 2>&1
+          cd .. && make setup
+      - id: build
+        shell: bash
+        working-directory: frontend
+        run: |
+          exec > >(tee impeccable-step.log) 2>&1
+          npm run build
+      - name: Seed data
+        id: seed
+        shell: bash
+        working-directory: frontend
+        run: |
+          exec > >(tee impeccable-step.log) 2>&1
+          cd .. && make seed
+      - name: Start the app
+        id: start
+        working-directory: frontend
+        run: |
+          (../backend/.venv/bin/python -m uvicorn app.main:app --app-dir ../backend --host 0.0.0.0 --port 8000 > app.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf "http://localhost:8000/" >/dev/null && break; sleep 2; done
+          curl -sf "http://localhost:8000/" >/dev/null || { echo "the app did not answer on http://localhost:8000/ within two minutes"; tail -c 3000 app.log; exit 1; }
+      - name: Tunnel to Impeccable and wait for the review
+        id: tunnel
+        working-directory: frontend
+        run: |
+          curl -sSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared && chmod +x cloudflared
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=impeccable.reviews" | jq -r .value)
+          release_tunnel() {
+            [ -n "$IMPECCABLE_TUNNEL_ID" ] || return 0
+            RELEASE_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=impeccable.reviews" | jq -r .value)
+            curl -sS -X DELETE "https://impeccable.reviews/api/tunnels/named/$IMPECCABLE_TUNNEL_ID" \
+              -H "Authorization: Bearer $RELEASE_TOKEN" >/dev/null || true
+            IMPECCABLE_TUNNEL_ID=""
+          }
+          WAITING_SINCE=""
+          while :; do
+            REG=$(curl -sS --fail-with-body -X POST https://impeccable.reviews/api/tunnels/named \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              -d "{\"port\": 8000}") || true
+            TUNNEL_TOKEN=$(echo "$REG" | jq -r '.tunnelToken // empty' 2>/dev/null) || true
+            REASON=$(echo "$REG" | jq -r '.error // empty' 2>/dev/null) || true
+            if [ -n "$TUNNEL_TOKEN" ]; then break; fi
+            if [ "$(echo "$REG" | jq -r '.retry // false' 2>/dev/null)" != "true" ]; then break; fi
+            WAIT_S=$(( $(echo "$REG" | jq -r '.waitMs // 0' 2>/dev/null) / 1000 ))
+            RETRY_S=$(( $(echo "$REG" | jq -r '.retryAfterMs // 15000' 2>/dev/null) / 1000 ))
+            if [ -z "$WAITING_SINCE" ]; then
+              WAITING_SINCE=$SECONDS
+              echo "no named tunnel yet (${REASON:-Impeccable did not say}); trying again for up to ${WAIT_S}s"
+            fi
+            WAITED=$(( SECONDS - WAITING_SINCE ))
+            if [ "$WAITED" -ge "$WAIT_S" ]; then echo "still no named tunnel after ${WAITED}s (${REASON:-Impeccable did not say})"; break; fi
+            sleep "${RETRY_S:-15}"
+          done
+          test -n "$TUNNEL_TOKEN" || { echo "::error title=No preview tunnel::Impeccable did not open a tunnel for this review: ${REASON:-Impeccable did not answer}. Nothing was tunnelled, so the review has no pages to look at; the review of this pull request says whether the fix is in this repository or on Impeccable's side, and re-running this job is enough when it is Impeccable's."; exit 1; }
+          echo "::add-mask::$TUNNEL_TOKEN"
+          echo "$REG" | jq 'del(.tunnelToken)'
+          echo "named tunnel: $(echo "$REG" | jq -r .url) (gated: a bare link gets a 403)"
+          IMPECCABLE_TUNNEL_ID=$(echo "$REG" | jq -r '.id // empty')
+          echo "IMPECCABLE_TUNNEL_ID=$IMPECCABLE_TUNNEL_ID" >> "$GITHUB_ENV"
+          trap release_tunnel EXIT INT TERM
+          SUPERSEDED=$(echo "$REG" | jq -r '(.superseded // []) | join(" ")' 2>/dev/null) || true
+          if [ -n "$SUPERSEDED" ]; then echo "an earlier push of this pull request was superseded and its tunnel released ($SUPERSEDED)"; fi
+          TUNNEL_TOKEN="$TUNNEL_TOKEN" ./cloudflared tunnel run > tunnel.log 2>&1 &
+          POLL=$(echo "$REG" | jq -r .poll)
+          POLLED="$REG"
+          WAIT=2
+          for i in $(seq 1 8); do
+            NEXT=$(curl -sS "https://impeccable.reviews$POLL" || true)
+            if echo "$NEXT" | jq -e '.access' >/dev/null 2>&1; then POLLED="$NEXT"; fi
+            [ "$(echo "$POLLED" | jq -r '.access.access // "unknown"')" = "unreachable" ] || break
+            sleep $WAIT; WAIT=$(( WAIT * 2 > 20 ? 20 : WAIT * 2 ))
+          done
+          echo "impeccable access check: $(echo "$POLLED" | jq -r '.access.detail // "not run"')"
+          for i in $(seq 1 120); do
+            ANSWER=$(curl -sS -w '\n%{http_code}' "https://impeccable.reviews$POLL" 2>/dev/null || true)
+            STATE=$(echo "$ANSWER" | sed '$d' | jq -r '.state // empty' 2>/dev/null || true)
+            [ "$STATE" = "done" ] && break
+            [ -n "$STATE" ] || echo "impeccable poll: HTTP $(echo "$ANSWER" | tail -n 1), no review state in the answer; asking again"
+            sleep 10
+          done
+          echo "review done; closing the tunnel"
+      - name: Give the preview tunnel back
+        if: always()
+        run: |
+          [ -n "$IMPECCABLE_TUNNEL_ID" ] || exit 0
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=impeccable.reviews" | jq -r .value || true)
+          ANSWER=$(curl -sS -X DELETE "https://impeccable.reviews/api/tunnels/named/$IMPECCABLE_TUNNEL_ID" \
+            -H "Authorization: Bearer $TOKEN" || true)
+          echo "give the tunnel back: $(echo "$ANSWER" | jq -r '.error // "released"' 2>/dev/null || echo "${ANSWER:-no answer}")"
+      - name: Tell Impeccable what failed
+        if: failure()
+        working-directory: frontend
+        run: |
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=impeccable.reviews" | jq -r .value)
+          LOG=$({ for f in impeccable-step.log app.log tunnel.log; do [ -s "$f" ] && { echo "== $f"; tail -c 3000 "$f"; }; done; true; } | sed -E 's#://([^:/@[:space:]]+):[^@[:space:]]+@#://\1:***@#g')
+          jq -n --arg log "$LOG" --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{"outcomes": {"setup": "${{ steps.setup.outcome }}", "install": "${{ steps.install.outcome }}", "prepare": "${{ steps.prepare.outcome }}", "build": "${{ steps.build.outcome }}", "seed": "${{ steps.seed.outcome }}", "start": "${{ steps.start.outcome }}", "tunnel": "${{ steps.tunnel.outcome }}"}, "log": $log, "runUrl": $url}' \
+            | curl -sS -X POST https://impeccable.reviews/api/previews/report \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data-binary @-
