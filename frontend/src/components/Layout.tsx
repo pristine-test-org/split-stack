@@ -23,6 +23,7 @@ export default function Layout() {
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/projects">Projects</NavLink>
           <NavLink to="/team">Team</NavLink>
+          <NavLink to="/help">Help</NavLink>
           {user.role === 'admin' && <NavLink to="/admin">Admin</NavLink>}
         </nav>
         <div className="sidebar-footer">Fieldline Studio</div>

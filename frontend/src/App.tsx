@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import ProjectDetail from './pages/ProjectDetail'
 import Projects from './pages/Projects'
 import Team from './pages/Team'
+import Help from './pages/Help'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user } = useAuth()
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:id" element={<ProjectDetail />} />
         <Route path="team" element={<Team />} />
+        <Route path="help" element={<Help />} />
         <Route
           path="admin"
           element={
