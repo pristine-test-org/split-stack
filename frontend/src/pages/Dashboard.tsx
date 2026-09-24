@@ -16,7 +16,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHeader title={`Good to see you, ${firstName}`} subtitle="Here's where the studio's work stands today." />
+      <PageHeader title={`Good to see you, ${firstName}`} subtitle={studioLine} />
 
       <section className="stats">
         <div className="stat">
