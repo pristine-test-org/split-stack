@@ -64,7 +64,7 @@ export default function Admin() {
         </section>
 
         <section className="card">
-          <h2 className="card-title">Pending invites</h2>
+          <h2 className="card-title">Invitations awaiting reply</h2>
           {invites.error && <ErrorState message={invites.error} />}
           {invites.data && (
             <ul className="list">
