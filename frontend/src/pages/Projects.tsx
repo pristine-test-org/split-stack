@@ -58,7 +58,7 @@ export default function Projects() {
                   <Link className="table-link" to={`/projects/${p.id}`}>
                     {p.name}
                   </Link>
-                  <div className="list-secondary">{p.client}</div>
+                  <div className="list-secondary project-client">{p.client}</div>
                 </td>
                 <td>
                   <span className="person">

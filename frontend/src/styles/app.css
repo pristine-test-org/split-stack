@@ -242,6 +242,9 @@ h3 {
   font-size: var(--text-sm);
   color: var(--color-muted);
 }
+.project-client {
+  color: #c9cfcb;
+}
 .list-meta {
   display: flex;
   gap: var(--space-2);
