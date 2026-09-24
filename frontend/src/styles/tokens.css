@@ -1,0 +1,45 @@
+/* Design tokens. Everything in app.css should use these. */
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --color-bg: #f6f5f1;
+  --color-surface: #ffffff;
+  --color-sidebar: #1f2d29;
+  --color-sidebar-text: #c9d6d1;
+  --color-border: #e4e1d8;
+  --color-text: #1d2421;
+  --color-muted: #6b736f;
+
+  --color-primary: #2f5d50;
+  --color-primary-hover: #244a3f;
+  --color-primary-soft: #e3eee9;
+
+  --color-success: #2e7d4f;
+  --color-success-soft: #e2f3e8;
+  --color-warning: #9a6a00;
+  --color-warning-soft: #fbf0d6;
+  --color-danger: #b3372f;
+  --color-danger-soft: #fbe5e2;
+  --color-info: #33609c;
+  --color-info-soft: #e3ecf8;
+  --color-neutral-soft: #ecebe6;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgb(29 36 33 / 0.06), 0 1px 1px rgb(29 36 33 / 0.03);
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+}

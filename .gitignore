@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+.venv/
+.pytest_cache/
+
+# SQLite database (recreate with `make seed`)
+backend/data/
+*.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Env
+.env
+.env.local
+
+.DS_Store

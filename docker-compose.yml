@@ -1,0 +1,33 @@
+# Local development: API with auto-reload on :8000, Vite dev server on :5173.
+# Open http://localhost:5173 — Vite proxies /api to the api service.
+services:
+  api:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_PATH: data/app.db
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             ([ -f data/app.db ] || python seed.py) &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - web_node_modules:/app/node_modules
+    environment:
+      API_URL: http://api:8000
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  web_node_modules:
