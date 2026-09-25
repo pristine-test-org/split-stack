@@ -20,7 +20,7 @@ export default function Dashboard() {
 
       <section className="stats">
         <div className="stat">
-          <div className="stat-label">Active projects</div>
+          <div className="stat-label">Projects in progress</div>
           <div className="stat-value">{counts.active_projects}</div>
           <div className="stat-note">{counts.at_risk_projects} at risk</div>
         </div>
